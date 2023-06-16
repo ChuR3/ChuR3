@@ -1,0 +1,67 @@
+﻿<!DOCTYPE html>
+            <html>
+                <head>                    
+                    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+                    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+                    <title>Autosar blog</title>
+					<meta name="viewport" content="width=device-width, initial-scale=1.0">
+					<link rel="stylesheet" href="../../dist/main.css">
+					<link rel="stylesheet" href="../../css/style.css">
+					<link rel="stylesheet" href="../../css/code.css">
+					<script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+               </head>
+				<body>
+    <div id="app">
+        <canvas width="1777" height="841"
+            style="position: fixed; left: 100px; right: 20px; top: 0px; z-index: 99999; pointer-events: none;">
+        </canvas>
+        <div class="container">
+            <main class="content on">
+                <section class="outer">
+                    <article  class="article article-type-post" itemscope itemprop="blogPost" data-scroll-reveal>
+                        <div class="center">
+                            <header>
+                                <h1>Autosar blog</h1>
+                                <p class="meta"> &middot; </p>
+                            </header>
+							        <main class="markdown-body">
+
+<p id="1">本系列关于autosar的所有内容都是基于vector的代码对于infinion实现，请结合vector的代码实现阅读。</p>
+<h2 id="3">Communication</h2>
+<h2 id="6">OS</h2>
+<p id="7">关于vector os的实现，抽象成以下的简单的结构</p>
+<p id="9"><img src="./os_structure.png" alt="vecotr os" /></p>
+<blockquote id="11">
+<p id="11">由图可知，os的整个过程大概分为三步</p>
+<ol id="13">
+<li id="13"><p id="13">设置<a href="./alarm1.html">alarm</a>，alarm超时之后，set_event或者activate_task,使task能被scheduler调度</p>
+</li>
+<li id="15"><p id="15">当中断返回,wait_event或者task结束时，会触发<a href="./scheduler.html">scheduler</a>。scheduler会查看当前task优先级，选取一个当前需要运行的task</p>
+</li>
+<li id="17"><p id="17">根据scheduler选取的task，os会设置next_task的运行环境，实现<a href="./task_switch.html">task_switch</a></p>
+</li>
+</ol>
+</blockquote>
+
+                </main>
+            
+                            <footer>
+                                <p>&copy; 2023 My Blog</p>
+                            </footer>
+                        </div>
+                    </article>
+                </section>
+				
+            </main>
+        </div>
+    </div>
+</body>
+<script type="text/javascript">
+if(!/Android|webOS|iPhone|iPod|BlackBerry/i.test(navigator.userAgent)){
+  <!--设置标签样式document.write('<script type="text/javascript" src="../../js/FunnyTitle.js"><\/script>');-->
+  document.write('<script type="text/javascript" src="../../js/snow.js"><\/script>');
+ }
+</script>
+<script src="../../js/code.js"></script>
+			</html>
+            

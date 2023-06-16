@@ -1,0 +1,74 @@
+﻿<!DOCTYPE html>
+            <html>
+                <head>                    
+                    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+                    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+                    <title>基于状态机模型分析task_switch</title>
+					<meta name="viewport" content="width=device-width, initial-scale=1.0">
+					<link rel="stylesheet" href="../../dist/main.css">
+					<link rel="stylesheet" href="../../css/style.css">
+					<link rel="stylesheet" href="../../css/code.css">
+					<script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+               </head>
+				<body>
+    <div id="app">
+        <canvas width="1777" height="841"
+            style="position: fixed; left: 100px; right: 20px; top: 0px; z-index: 99999; pointer-events: none;">
+        </canvas>
+        <div class="container">
+            <main class="content on">
+                <section class="outer">
+                    <article id=基于状态机模型分析task_switch class="article article-type-post" itemscope itemprop="blogPost" data-scroll-reveal>
+                        <div class="center">
+                            <header>
+                                <h1>基于状态机模型分析task_switch</h1>
+                                <p class="meta"> &middot; </p>
+                            </header>
+							       <main class="markdown-body">
+                
+<p id="2"><img src="./task_machine.png" alt="state_machine" /></p>
+<p id="4">根据<a href="./alarm1.html">程序的运行是一组(M,R)的状态机</a>的基本模型,如果想把上述的task1切换到task2,原理上只需要两步：</p>
+<ol id="5">
+<li id="5">所有的内存M0切换成M4</li>
+<li id="6">所有的寄存器R0切换成R4</li>
+</ol>
+<h2 id="8">切换内存</h2>
+<p id="9">对于单片机项目而言，没有MMU对进程的内存空间进行管理，所以不可能将进程的内存空间全部换成自己的内存。但是autosar可以使用MPU保护内存，此时内存虽然还是混在一起被使用，但是不会有unexpected access.</p>
+<p id="11">对于infineon芯片而言，只需要利用psw中的PRS切换不同的内存访问组(DPR和CPR)，可以初步控制task的内存访问权限，却没有像MMU那样的内存访问的损耗。</p>
+<h2 id="13">切换寄存器</h2>
+<p id="14">根据《深入理解计算机系统》中存储器的层次结构，cpu直接交互的对象是寄存器,所以每一个task(更准确的说是function)进行切换时，都会对寄存器进行切换</p>
+<p id="16"><img src="./存储结构.png" alt="存储结构" /></p>
+<p id="18">如果需要对寄存器切换，需要有以下需求：</p>
+<ol id="19">
+<li id="19">需要保存当前被切换出task的寄存器</li>
+<li id="20">要执行的task需要拿出<strong>最近</strong>保存的寄存器用于执行，保证其工作的连续性。</li>
+</ol>
+<p id="22">所以根据上述的需求，可以抽象出cpu是通过<strong>栈结构</strong>保存寄存器。对于<a href="https://github.com/ChuR3/Personal_Repo/tree/master/doc/infineon/TC3x">infineon芯片而言</a>，利用一个PCXI寄存器实现了栈帧（CSA）控制的栈顶指针。</p>
+<blockquote id="23">
+<p id="23">CSA内存的申请和释放是从栈顶指针FCX指向的栈结构中获取的</p>
+</blockquote>
+<p id="25">但是CSA把几乎所有的core_register都记录下来，所以每次在task切换的时候，都会对当前的core_register做快照存在CSA中。但是在linux中，在每次task切换时之切换了两个寄存器：栈(sp)和pc。</p>
+<p id="27">这是因为POSIX规定编译器在编译时，寄存器是被caller_save或者callee_save,这样直接将寄存器保存在其运行的栈帧中，而不用另外独立维护一个CSA栈。并且有些function可能很简单，只需要1~2个寄存器保存其临时变量。所以linux这种方式虽然是软件实现，但是相比CSA有着很大的灵活性，所以其切换速度可能比CSA更快。</p>
+
+                </main>
+            
+                            <footer>
+                                <p>&copy; 2023 My Blog</p>
+                            </footer>
+                        </div>
+                    </article>
+                </section>
+				
+            </main>
+        </div>
+    </div>
+</body>
+<script type="text/javascript">
+if(!/Android|webOS|iPhone|iPod|BlackBerry/i.test(navigator.userAgent)){
+  <!--设置标签样式document.write('<script type="text/javascript" src="../../js/FunnyTitle.js"><\/script>');-->
+  document.write('<script type="text/javascript" src="../../js/snow.js"><\/script>');
+ }
+</script>
+<script src="../../js/code.js"></script>
+			</html>
+            

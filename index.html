@@ -1,0 +1,463 @@
+
+<!DOCTYPE html>
+
+
+<html lang="zh-CN">
+
+
+<head>
+  <meta charset="utf-8" />
+    
+  <meta name="description" content="github 个人网站" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>
+     ChuR3主页
+  </title>
+  <meta name="generator" content="hexo-theme-ayer">
+  
+  <link rel="shortcut icon" href="./icon/images.jpg" />
+  
+  
+<link rel="stylesheet" href="./dist/main.css">
+<link rel="stylesheet" href="./css/style.css">
+<script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/typed.js@2.0.11/lib/typed.min.js"></script>
+
+</head>
+
+</html>
+<body>
+	
+  <div id="app">
+    
+      
+      <canvas width="1777" height="841"
+        style="position: fixed; left: 0px; top: 0px; z-index: 99999; pointer-events: none;"></canvas>
+      
+    <main class="content on">
+      
+<section class="cover">
+    
+  <div class="cover-frame">
+    <div class="bg-box">
+      <img src="./icon/cover1.jpg" alt="image frame" />
+    </div>
+    <div class="cover-inner text-center text-white">
+      <h1><a href="https://github.com/ChuR3/ChuR3.github.io">ChuR3主页</a></h1>
+      <div id="subtitle-box">
+        
+        <span id="subtitle"></span>
+        
+      </div>
+      <div>
+        
+      </div>
+    </div>
+  </div>
+
+</section>
+
+
+
+
+
+<!-- Subtitle -->
+
+  <script>
+    try {
+      var typed = new Typed("#subtitle", {
+        strings: ['Welcome to my Homepage', '先做减法，再做加法'],
+        startDelay: 0,
+        typeSpeed: 200,
+        loop: true,
+        backSpeed: 100,
+        
+		onComplete: function(self) {
+				fetch('https://v1.hitokoto.cn')
+					.then(response => response.json())
+					.then(data => {
+						 self.strings[0] = data.hitokoto;
+						 <!--self.reset();-->
+						 console.log(data.hitokoto)
+					})
+					.catch(console.error)
+		  }
+      });
+    } catch (err) {
+      console.log(err)
+    }
+	
+  </script>
+  
+<div id="main">
+  <section class="outer container">
+  
+	<div class="container">
+
+		<ul class="group" itemprop="keywords">
+			<h2 class="article-category"><a class="article-category-link" href="https://github.com/ChuR3/linux">linux 源码阅读</a></h2>
+			<li class="list">
+				<a class="article-tag-list-link" href="./linux/linux0.11.uxf" download="linux0.11.uxf" rel="tag">linux_0.11流程图</a>
+			</li>
+			<li class="list">
+				<a class="article-tag-list-link" href="./linux/linux2.4.0.uxf" download="linux2.4.0.uxf" rel="tag">linux2.4.0流程图</a>
+			</li>
+			<li class="list">
+				<a class="article-tag-list-link" href="./linux/linux2.6.20_net.uxf" download="linux2.6.20_net.uxf" rel="tag">linux2.6.20网络流程图</a>
+			</li>
+			<li class="list">
+				<a class="article-tag-list-link" href="./linux/btrfs.uxf" download="btrfs.uxf" rel="tag">linux4.4.0 btrfs流程图</a>
+			</li>
+		</ul>
+		
+		<ul class="group" itemprop="keywords">
+			<h2 class="article-category"><a class="article-category-link" href="https://github.com/ChuR3/Personal_Repo">Miscellaneous_Tool</a></h2>
+			<li class="list">
+				<a class="article-tag-list-link" href="https://github.com/ChuR3/Personal_Repo/tree/master/record" download="linux0.11.uxf" rel="tag">vim_learn</a>
+			</li>
+		</ul>
+		
+		<div class="sub_parent" itemprop="keywords">
+			<h2 class="article-category"><a class="article-category-link" >Blog</a></h2>
+			<div class="sub_container" itemprop="keywords">
+				
+				<ul class="group" itemprop="keywords">
+					<h2 class="article-category"><a class="article-category-link" >Miscellaneous</a></h2>
+					<li class="list">
+						<a class="article-tag-list-link" href="./blog/autosar/autosar.html" rel="tag">Autosar</a>
+					</li>
+					<li class="list">
+						<a class="article-tag-list-link" href="./blog/C语言变参的实现/printf.html" rel="tag">C语言变参的实现</a>
+					</li>
+					
+				</ul>
+				<ul class="group" itemprop="keywords">
+					<h2 class="article-category"><a class="article-category-link" >Linux</a></h2>
+					<li class="list">
+						<a class="article-tag-list-link" href="./blog/内存换出和缓冲区释放/buffer.html" rel="tag">内存换出和缓冲区释放</a>
+					</li>
+					<li class="list">
+						<a class="article-tag-list-link" href="./blog/动态链接与可安装模块/link.html" rel="tag">动态链接与可安装模块</a>
+					</li>
+					<li class="list">
+						<a class="article-tag-list-link" href="./blog/文件预读/read_ahead.html" rel="tag">文件预读</a>
+					</li>
+				</ul>
+				<ul class="group" itemprop="keywords">
+					<h2 class="article-category"><a class="article-category-link" >Network</a></h2>
+				</ul>
+				<ul class="group" itemprop="keywords">
+					<h2 class="article-category"><a class="article-category-link" href="./blog/btrfs/btrfs_plan.html">Btrfs</a></h2>
+					<li class="list">
+						<a class="article-tag-list-link" href="./blog/btrfs/btrfs_raid1.html" rel="tag">Btrfs之RAID：Chunk抽象和使用</a>
+					</li>
+				</ul>
+			</div>
+		</div>
+		
+	</div>
+
+<!--源布局
+  <article class="articles item">
+    
+    
+    
+    
+    <article
+  id="linux_0.11"
+  class="article article-type-post"
+  itemscope
+  itemprop="blogPost"
+  data-scroll-reveal
+>
+ 
+  
+  <div class="article-inner">
+     
+    <header class="article-header">
+       
+<p itemprop="name">
+ <a class="article-title" href="./linux/linux0.11.uxf" download="linux0.11.uxf">linux_0.11流程图</a> 
+</p>
+ 
+
+    </header>
+     
+    <div class="article-meta">
+  <div class="article-category">
+    <a class="article-category-link" href="https://github.com/ChuR3/linux_umlet">linux</a>
+  </div>
+   
+    </div>
+       
+
+
+    
+    <footer class="article-footer">
+       
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="https://github.com/ChuR3/linux_umlet" rel="tag">linux</a></li></ul>
+
+    </footer>
+  </div>
+
+    
+ 
+   
+</article>
+
+        <article
+  id="linux_2.4.0"
+  class="article article-type-post"
+  itemscope
+  itemprop="blogPost"
+  data-scroll-reveal
+>
+ 
+  
+  <div class="article-inner">
+     
+    <header class="article-header">
+       
+<p itemprop="name">
+ <a class="article-title" href="./linux/linux2.4.0.uxf" download="linux2.4.0.uxf">linux_2.4.0流程图</a> 
+</p>
+ 
+
+    </header>
+     
+    <div class="article-meta">
+  <div class="article-category">
+    <a class="article-category-link" href="https://github.com/ChuR3/linux_umlet">linux</a>
+  </div>
+   
+    </div>
+       
+
+    
+    <footer class="article-footer">
+       
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="https://github.com/ChuR3/linux_umlet" rel="tag">linux</a></li></ul>
+
+    </footer>
+  </div>
+
+    
+ 
+   
+</article>
+
+
+
+        <article
+  id="linux2.6.20_net"
+  class="article article-type-post"
+  itemscope
+  itemprop="blogPost"
+  data-scroll-reveal
+>
+ 
+  
+  <div class="article-inner">
+     
+    <header class="article-header">
+       
+<p itemprop="name">
+ <a class="article-title" href="./linux/linux2.6.20_net.uxf" download="linux2.6.20_net.uxf">linux2.6.20_net流程图</a> 
+</p>
+ 
+
+    </header>
+     
+    <div class="article-meta">
+  <div class="article-category">
+    <a class="article-category-link" href="https://github.com/ChuR3/linux_umlet">linux</a>
+  </div>
+   
+    </div>
+	</div>
+</article>
+</article>
+  <article class="articles item">
+    
+    
+    
+    
+    <article
+  id="C语言变参的实现"
+  class="article article-type-post"
+  itemscope
+  itemprop="blogPost"
+  data-scroll-reveal
+>
+ 
+  
+  <div class="article-inner">
+     
+    <header class="article-header">
+       
+<p itemprop="name">
+ <a class="article-title" href="./blog/C语言变参的实现/printf.html">C语言变参的实现</a> 
+</p>
+ 
+
+    </header>
+     
+    <div class="article-meta">
+  <div class="article-category">
+    <a class="article-category-link" >C</a>
+  </div>
+   
+    </div>
+       
+
+    
+    <footer class="article-footer">
+       
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link"  rel="tag">C</a></li><li class="article-tag-list-item"><a class="article-tag-list-link"  rel="tag">printf</a></li></ul>
+
+    </footer>
+  </div>
+
+    
+ 
+   
+</article>
+</article>
+-->
+  
+  <!--下边栏
+  <nav class="page-nav">
+    
+    <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="page-number" href="/page/3/">3</a><a class="extend next" rel="next" href="/page/2/">下一页</a>
+  </nav>
+  -->
+</section>
+</div>
+<!--下边栏
+      <footer class="footer">
+  <div class="outer">
+    <ul>
+      <li>
+        Copyrights &copy;
+        2020-2021
+        <i class="ri-heart-fill heart_icon"></i> 杰克小麻雀
+      </li>
+    </ul>
+    <ul>
+      <li>
+        
+        
+        
+        由 <a href="https://hexo.io" target="_blank">Hexo</a> 强力驱动
+        <span class="division">|</span>
+        主题 - <a href="https://github.com/Shen-Yu/hexo-theme-ayer" target="_blank">Ayer</a>
+        
+      </li>
+    </ul>
+    <ul>
+      <li>
+        
+        
+        <span>
+  <span><i class="ri-user-3-fill"></i>访问人数:<span id="busuanzi_value_site_uv"></span></s>
+  <span class="division">|</span>
+  <span><i class="ri-eye-fill"></i>浏览次数:<span id="busuanzi_value_page_pv"></span></span>
+</span>
+        
+      </li>
+    </ul>
+    <ul>
+      
+    </ul>
+    <ul>
+      
+    </ul>
+    <ul>
+      <li>
+    
+        
+      </li>
+    </ul>
+  </div>
+</footer>
+      <div class="float_btns">
+        <div class="totop" id="totop">
+  <i class="ri-arrow-up-line"></i>
+</div>
+
+<div class="todark" id="todark">
+  <i class="ri-moon-line"></i>
+</div>
+
+      </div>
+   -->
+   </main>
+	<!--侧边栏
+    <aside class="sidebar on">
+      <button class="navbar-toggle"></button>
+<nav class="navbar">
+  
+  <div class="logo">
+    <a href="/"><img src="/favicon.ico" alt="半亩方塘"></a>
+  </div>
+  
+  <ul class="nav nav-main">
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/">主页</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/archives">归档</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/categories">分类</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/tags">标签</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/friends">关于我</a>
+    </li>
+    
+  </ul>
+</nav>
+<nav class="navbar navbar-bottom">
+  <ul class="nav">
+    <li class="nav-item">
+      
+      <a class="nav-item-link nav-item-search"  title="搜索">
+        <i class="ri-search-line"></i>
+      </a>
+      
+      
+    </li>
+  </ul>
+</nav>
+<div class="search-form-wrap">
+  <div class="local-search local-search-plugin">
+  <input type="search" id="local-search-input" class="local-search-input" placeholder="Search...">
+  <div id="local-search-result" class="local-search-result"></div>
+</div>
+</div>
+    </aside>
+	-->
+    
+
+<!-- CanvasBackground -->
+
+
+    
+  </div>
+</body>
+<script type="text/javascript">
+if(!/Android|webOS|iPhone|iPod|BlackBerry/i.test(navigator.userAgent)){
+  <!--设置标签样式document.write('<script type="text/javascript" src="../../js/FunnyTitle.js"><\/script>');-->
+  document.write('<script type="text/javascript" src="./js/snow.js"><\/script>');
+}
+</script>
+</html>

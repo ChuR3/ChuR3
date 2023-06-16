@@ -1,0 +1,144 @@
+﻿<!DOCTYPE html>
+            <html>
+                <head>                    
+                    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+                    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+                    <title>文件预读</title>
+					<meta name="viewport" content="width=device-width, initial-scale=1.0">
+					<link rel="stylesheet" href="../../dist/main.css">
+					<link rel="stylesheet" href="../../css/style.css">
+					<link rel="stylesheet" href="../../css/code.css">
+					<script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+               </head>
+				<body>
+    <div id="app">
+        <canvas width="1777" height="841"
+            style="position: fixed; left: 100px; right: 20px; top: 0px; z-index: 99999; pointer-events: none;">
+        </canvas>
+        <div class="container">
+            <main class="content on">
+                <section class="outer">
+                    <article id=文件预读 class="article article-type-post" itemscope itemprop="blogPost" data-scroll-reveal>
+                        <div class="center">
+                            <header>
+                                <h1>文件预读</h1>
+                                <p class="meta"> &middot; </p>
+                            </header>
+							  <main class="markdown-body">
+<p id="1">为了优化读取文件的时间延迟，文件系统(FS)在去磁盘读取文件时会有一个read_ahead的动作。主要思路是：当FS发现用户读取文件是按照文件的顺序读取，FS就假定用户在下一次读取时大概率会读取下一个block。</p>
+<p id="3">所以FS在把当前的block读取到内存后，会发送读取下一个block的命令，然后将当前block数据返回给用户。这样用户在处理数据的时候，磁盘IO也在并行的执行(如果是DMA的方式，磁盘IO在完成之后，会通过中断的方式告诉FS)</p>
+<p id="5"><img src="./文件预读.png" alt="文件预读" /></p>
+<p id="7">这个预读过程是FS猜测用户大概率会读，如果用户不读取，既会浪费磁盘IO时间，也会浪费内存，还会浪费cpu的执行时间。所以需要一定的指标衡量预读。</p>
+<ol id="9">
+<li id="9">文件读取是否是<strong>顺序读取</strong>，如果是随机读，因为没办法预测，所以不需要预读</li>
+<li id="10">如果文件是顺序读，就需要根据之前读取的规律判断<strong>预读窗口</strong>，这样就不会将过多的数据读取到内存中。</li>
+</ol>
+<p id="12">linux4.4.0的预读算法是在ondemand_readahead中实现的,它预测<strong>顺序读取</strong>的行为，通过控制一个预读结构file_ra_state，从而实现对<strong>预读窗口</strong>的控制</p>
+<p id="14"><img src="./ra.png" alt="file_ra_state" /></p>
+<blockquote id="16">
+<p id="16">注：ra.start：读取的起始位置</p>
+<p id="18">  ra.size:读取的窗口</p>
+<p id="20">  ra.async_size: 当用户读到标记为Readahead的page时，会触发异步预读</p>
+</blockquote>
+<h2 id="23">首次预读</h2>
+<ol id="24">
+<li id="24"><p id="24">顺序读取识别</p>
+<ol id="25">
+<li id="25"><p id="25">初次读取（即file.f_pos为0）,会设置初始窗口进行预读</p>
+<p id="27"><img src="./first_read.png" alt="first_read" /></p>
+</li>
+<li id="29"><p id="29">上一次读取时并不满足预读的条件，但是此次是严格的顺序读（offset和ra.prev_pos的偏差在一页以内）。所以需要根据当前的req_size选择init_ra_size</p>
+</li>
+</ol>
+<blockquote id="31">
+<p id="31">ra.prev_pos：表示用户上次读取位置</p>
+</blockquote>
+<ol start="3" id="33">
+<li id="33">单次读取的量超过了ra-&gt;ra_pages，因为检查到大块面积的读取，用户大概率顺序读，所以也会根据req_size初始化预读窗口</li>
+</ol>
+<blockquote id="35">
+<p id="35">ra.ra_pages:表示最大的预读窗口</p>
+</blockquote>
+</li>
+<li id="36"><p id="36">初始预读窗口设置</p>
+<ol id="38">
+<li id="38">初始窗口的设置是根据此次读取请求的req_size决定的。根据req_size和ra.ra_pages的相对大小，选取预读窗口，但是最大不能超过ra.ra_pages。</li>
+<li id="39">当req_size超过ra_pages时，ondemand_readahead设计会触发一个异步预读窗口，让async_size的大小通过get_next_ra_size扩大(size也随之扩大)</li>
+</ol>
+</li>
+</ol>
+<h2 id="41">预读窗口内部读取</h2>
+<h3 id="42">1.	预读窗口内的一般位置不会触发预读</h3>
+<p id="43"> 每次do_generic_file_read发现需要的page不在内存中，就会通过page_cache_sync_readahead进行同步预读，会判断是否需要预读。</p>
+<p id="45"> 如果需要预读会设置预读窗口，在设置窗口之后会为窗口中的段申请pages。当读取到在预读窗口内的page时（此时的page不一定和磁盘同步，如果do_generic_file_read发现不同步会通过lock_page进行同步等待page uptodate），此时因为能找到page所以不会触发预读操作</p>
+<blockquote id="47">
+<p id="47">注：预读窗口内大部分page不会触发，但是有两个例外</p>
+<p id="49">  1.标记了Readahead的page会触发异步预读</p>
+<p id="51">  2.预读窗口读取完成之后</p>
+</blockquote>
+<h3 id="53">2.	异步预读</h3>
+<ol id="54">
+<li id="54"><p id="54">顺序读取识别--当读取到标记Readahead的page时，将触发异步预读page_cache_async_readahead</p>
+<ol id="56">
+<li id="56"><p id="56">单线程读取file时，ra结构只会随着本线程的读取而变化，Readahead page一定会在(ra-&gt;start + ra-&gt;size - ra-&gt;async_size)的位置</p>
+</li>
+<li id="57"><p id="57">多线程读取时，因为ra结构是进程内多线程共用的，所以每个线程再查看自己的ra时，Readahead page不一定在单线程所在的位置上。</p>
+<blockquote id="59">
+<p id="59">但是此时因为检测到page Readahead标记，从而触发的异步预读page_cache_async_readahead，会将hit_readahead_marker置上。</p>
+</blockquote>
+</li>
+</ol>
+</li>
+<li id="61"><p id="61">预读窗口设置</p>
+<p id="63">当识别到上次顺序读完成，而触发下一次顺序读的时候，通过get_next_ra_size扩大预读窗口，这个扩大策略是基于ra_size进行扩大，相对于init_ra_size会更宽松，但是仍然不能超过ra_pages。</p>
+<ol id="65">
+<li id="65">单线程读取时</li>
+</ol>
+<p id="67"><img src="./single_readahead.png" alt="单线程预读窗口" /></p>
+<ol start="2" id="69">
+<li id="69">多线程读取时，ra已经失效，所以通过page_cache_next_hole查看该线程当前连续存在的page作为next_ra_size的输入</li>
+</ol>
+<p id="71"><img src="./mul_readahead.png" alt="多线程预读窗口" /></p>
+</li>
+</ol>
+<h3 id="73">3.	预读窗口读完</h3>
+<ol id="74">
+<li id="74"><p id="74">顺序读取识别--当FS读取到(ra-&gt;start + ra-&gt;size)时，意味着预读窗口读取完成，将会触发下一波的同步预读</p>
+</li>
+<li id="75"><p id="75">预读窗口设置--会触发一个异步预读窗口</p>
+<p id="77"><img src="./readahead_complete.png" alt="预读窗口完成" /></p>
+</li>
+</ol>
+<h2 id="79">多线程读取</h2>
+<p id="80">当没有检查到上述顺序读的特征时，并不能表示用户没有进行顺序读。因为如果是一个进程内的多个线程对文件进行分段读取，对于每一个线程来说可能都是顺序读取，但是因为多线程之间的切换会改变ra的结构，从而检测不到顺序读取的特征。在linux4.4.0中，通过try_context_readahead检查这一特征。</p>
+<p id="82"><img src="./多线程读取.png" alt="多线程读取" /></p>
+<ol id="84">
+<li id="84"><p id="84">顺序读取识别--通过count_history_pages识别线程连续读取的page数（红色区域），要求超过此次的req_size</p>
+</li>
+<li id="85"><p id="85">预读窗口设置</p>
+<p id="87"><img src="./mul.png" alt="多线程读取" /></p>
+</li>
+</ol>
+
+                </main>
+            
+                            <footer>
+                                <p>&copy; 2023 My Blog</p>
+                            </footer>
+                        </div>
+                    </article>
+                </section>
+				
+            </main>
+        </div>
+    </div>
+</body>
+<script type="text/javascript">
+if(!/Android|webOS|iPhone|iPod|BlackBerry/i.test(navigator.userAgent)){
+  <!--设置标签样式document.write('<script type="text/javascript" src="../../js/FunnyTitle.js"><\/script>');-->
+  document.write('<script type="text/javascript" src="../../js/snow.js"><\/script>');
+ }
+</script>
+<script src="../../js/code.js"></script>
+			</html>
+            

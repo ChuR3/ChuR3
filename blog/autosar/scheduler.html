@@ -1,0 +1,182 @@
+﻿<!DOCTYPE html>
+            <html>
+                <head>                    
+                    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+                    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+                    <title>基于简单模型的scheduler实现</title>
+					<meta name="viewport" content="width=device-width, initial-scale=1.0">
+					<link rel="stylesheet" href="../../dist/main.css">
+					<link rel="stylesheet" href="../../css/style.css">
+					<link rel="stylesheet" href="../../css/code.css">
+					<script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+               </head>
+				<body>
+    <div id="app">
+        <canvas width="1777" height="841"
+            style="position: fixed; left: 100px; right: 20px; top: 0px; z-index: 99999; pointer-events: none;">
+        </canvas>
+        <div class="container">
+            <main class="content on">
+                <section class="outer">
+                    <article id=基于简单模型的scheduler实现 class="article article-type-post" itemscope itemprop="blogPost" data-scroll-reveal>
+                        <div class="center">
+                            <header>
+                                <h1>基于简单模型的scheduler实现</h1>
+                                <p class="meta"> &middot; </p>
+                            </header>
+							     <main class="markdown-body">
+               
+<h2 id="1">需求分析</h2>
+<p id="2">对于vector rtos scheduler的设计有两个基本的设计需求：</p>
+<ol id="4">
+<li id="4">对于不同优先级的task，按照优先级的高低进行调度</li>
+<li id="5">对于相同优先级的task，按照激活的先后顺序进行调度</li>
+</ol>
+<h2 id="7">模型抽象</h2>
+<p id="8">对于这两条需求，可以抽象出两个基本模型</p>
+<ol id="9">
+<li id="9">对于不同优先级的task，因为按照优先级的<strong>大小</strong>进行调度，所以可以抽象出是和<a href="./alarm1.html">alarm一样的</a><strong>排序模型</strong>。</li>
+<li id="10">对于相同优先级的task，因为按照激活的<strong>先后</strong>先后进行调度，可以抽象出是一个<strong>队列模型</strong></li>
+</ol>
+<h2 id="12">代码实现</h2>
+<p id="13">根据上述两个模型实现一个简单的scheduler。该scheduler拥有两个接口：</p>
+<ol id="14">
+<li id="14">task激活时调用<strong>inform_scheduler</strong>,通知scheduler task被激活可以被调度</li>
+<li id="15">当中断返回，wait_event或者task结束时调用<strong>schedule</strong>，选择合适的task进行切换</li>
+</ol>
+<p id="17">对于上述的两个简单模型，可以参考<a href="https://www.bilibili.com/video/BV1Kx411f7bL/?spm_id_from=333.337.search-card.all.click">M6.046J</a>，有多种实现方式。这里采用vector的方式：用bitmap实现排序模型；用数组实现队列模型</p>
+<div class="code-container">
+<div class="code-header">
+<h3>sched.h</h3>
+<button class="toggle-button">展开</button>
+</div>
+<pre><code id="25">#define Array_size(array)	(sizeof(array)/sizeof(array[0]))
+#define NR_PRIORITY			(100)
+
+typedef struct task
+{
+	unsigned int priority;
+	context *context;
+}Task;
+
+typedef struct Queue
+{
+
+	int			write_idx;
+	int			read_idx;
+	Task*		task[SAME_PRIORITY+1];
+	spinlock_t queue_lock;
+}Queue;
+
+
+
+
+/*剑指offser算法题10,也可以直接循环(1&lt;&lt;i)&amp;s
+**另外infenion 上有对这个函数的指令级实现
+*/
+inline int find_first_one(unsigned int s )
+{
+	/*如果不加前置判断，count为32是无效的*/
+	if(!s)
+		return -1;
+	unsigned int count=0,t=(s-1)^s;
+	while(t)
+	{
+		count++;
+		
+		t=(t-1)&amp;t;
+	}
+
+	return count-1;
+}
+</code></pre>
+</div>
+<p/>
+<div class="code-container">
+<div class="code-header">
+<h3>scheduler.c</h3>
+<button class="toggle-button">展开</button>
+</div>
+<pre><code id="76">#include &quot;sched.h&quot;
+unsigned int task_bitmap[NR_PRIORITY/sizeof(unsigned int)];
+spinlock_t bit_lock=0;
+
+Queue task_queue[NR_PRIORITY];
+
+void inform_scheduler(Task *task)
+{
+	int prior=task-&gt;priority;
+	
+	//排序模型输入
+	spin_lock(bit_lock);
+	task_bitmap[ prior/sizeof(int) ] |= (1&lt;&lt;(prior%sizeof(int)));
+	spin_unlock(bit_lock);
+	
+	//队列模型输入
+	Queue queue=task_queue[prior];
+	spin_lock(queue.queue_lock);
+	
+	queue.task[queue.write_idx]=task;
+	queue.write_idx=(queue.write_idx+1)%Array_size(queue.task);
+	assert( queue.write_idx != queue.read_idx);//队列满了，报错
+	
+	spin_unlock(queue.queue_lock);
+	
+}
+
+void schedule()
+{
+
+	int i=0,prior=-1;
+	Task *task=NULL;
+	//排序模型输出
+	spin_lock(bit_lock);
+	for(;i&lt;Array_size(task_bitmap);i++)
+	{
+		if(  (prior = find_first_one(task_bitmap[i]) ) != -1  )
+			break;
+	}
+	spin_unlock(bit_lock);
+	assert(prior!=-1);
+	
+	prior=i*8*sizeof(unsigned int)+prior;
+	
+	//队列模型输出
+	Queue queue=task_queue[prior];
+	spin_lock(queue.queue_lock);
+	
+	assert( queue.read_idx!=queue.write_idx);//队列空的，报错
+	
+	task=queue.task[queue.read_idx];
+	queue.read_idx=(queue.read_idx+1)%Array_size(queue.task);
+	
+	spin_unlock(queue.queue_lock);
+	
+	switch_task(task-&gt;context);//切换task的上下文
+	
+}
+</code></pre>
+</div>
+
+                </main>
+           
+                            <footer>
+                                <p>&copy; 2023 My Blog</p>
+                            </footer>
+                        </div>
+                    </article>
+                </section>
+				
+            </main>
+        </div>
+    </div>
+</body>
+<script type="text/javascript">
+if(!/Android|webOS|iPhone|iPod|BlackBerry/i.test(navigator.userAgent)){
+  <!--设置标签样式document.write('<script type="text/javascript" src="../../js/FunnyTitle.js"><\/script>');-->
+  document.write('<script type="text/javascript" src="../../js/snow.js"><\/script>');
+ }
+</script>
+<script src="../../js/code.js"></script>
+			</html>
+            

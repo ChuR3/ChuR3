@@ -1,0 +1,116 @@
+.container {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 auto;
+  justify-content: center;
+  align-items: stretch; /* 将元素在交叉轴上拉伸以占满整个高度 */
+  height: 100vh;
+  width: 100vw;
+}
+
+.container > * {
+  flex-grow: 1;
+  flex-shrink: 1;
+  flex-basis: auto;
+  align-self: stretch; /* 将每个元素在交叉轴上拉伸以与其他元素同一高度 */
+}
+.sub_container {
+	
+	display: flex;
+	flex-grow: 1;
+	flex-shrink: 1;
+	flex-basis: auto;
+	min-width: calc(50% - 20px);
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	align-items: left;
+	background-color: #f5f5f5;
+
+	border-radius: 10px;
+	min-height: 150px;
+}
+
+.sub_container h2 {
+	font-size: 24px;
+	margin-bottom: 20px;
+	text-align: center;
+}
+
+
+.sub_parent {
+	
+	display: flex;
+	flex-direction: column;
+	flex-grow: 1;
+	flex-shrink: 1;
+	flex-basis: auto;
+	min-width: calc(50% - 20px);
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	align-items: left;
+	background-color: #f5f5f5;
+	border-radius: 10px;
+	box-shadow: 0px 0px 10px rgba(0,0,0,0.2);
+	min-height: 150px;
+}
+.sub_parent h2 {
+	font-size: 24px;
+	margin-bottom: 20px;
+	text-align: center;
+}
+
+.group {
+	
+	display: flex;
+	flex-direction: column;
+	flex-grow: 1;
+	flex-shrink: 1;
+	flex-basis: auto;
+	min-width: calc(50% - 20px);
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	align-items: left;
+	background-color: #f5f5f5;
+	padding: 20px;
+	margin: 10px;
+	border-radius: 10px;
+	box-shadow: 0px 0px 10px rgba(0,0,0,0.2);
+	min-height: 150px;
+}
+
+.group h2 {
+	font-size: 24px;
+	margin-bottom: 20px;
+	text-align: center;
+}
+
+.item {
+	background-color: #fff;
+	border-radius: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: left;
+	box-shadow: 0px 0px 10px rgba(0,0,0,0.2);
+	font-size: 20px;
+}
+.list {
+  margin: 10px;
+  padding: 10px;
+  background-color: #f5f5f5;
+  border-radius: 10px;
+  box-shadow: 0px 0px 10px rgba(0,0,0,0.2);
+  font-size: 20px;
+  text-align: center;
+  height: 70px;
+  
+}
+h1 {
+  text-align: center;
+}
+
+.code-container pre {
+  max-height: 200px; /* 初始高度 */
+  overflow:	auto;
+  overflow-y: hidden;
+}

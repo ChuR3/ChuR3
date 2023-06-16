@@ -1,0 +1,3 @@
+[submodule "linux"]
+	path = linux
+	url = https://gitee.com/ChuR3/linux
