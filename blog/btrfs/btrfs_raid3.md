@@ -4,7 +4,7 @@
 ## __btrfs_balance
 当业务扩展时，可以通过"btrfs device add"命令将新磁盘加入到Btrfs系统中，增加Btrfs的容量。但是此时数据在磁盘上的分布是不均匀的，多个磁盘的RAID性能没办法完全发挥出来，所以可以通过"btrfs balance start"命令将数据均匀分布到各个磁盘上。
 
-根据 [Btrfs之RAID：Chunk抽象和使用](./btrfs_raid1.html) 可知，RAID在申请chunk时，chunk空间是均匀分布到各个设备上。所以"btrfs balance"是重新申请chunk，将原来所有的chunk relocate到新的chunk上(在Btrfs数据比较多时，将所有chunk重新relocate将会花比较多的时间)
+根据 [Btrfs之RAID(一)：Chunk抽象和使用](./btrfs_raid1.html) 可知，RAID在申请chunk时，chunk空间是均匀分布到各个设备上。所以"btrfs balance"是重新申请chunk，将原来所有的chunk relocate到新的chunk上(在Btrfs数据比较多时，将所有chunk重新relocate将会花比较多的时间)
 ```c
 static int __btrfs_balance(struct btrfs_fs_info *fs_info)
 {
@@ -35,7 +35,12 @@ static int __btrfs_balance(struct btrfs_fs_info *fs_info)
 		1.btrfs_can_relocate通过find_free_dev_extent查找device中是否存在要重定位的大小(block_group已使用长度重新分布到各个device上)
 		2.btrfs_relocate_block_group
 			- btrfs_lookup_block_group查找包含chunk的block_group(block_group_cache_tree_search中contain置上，保证找到的block_group包含了chunk_start)
-			- 
+			- delete_block_group_cache通过btrfs_truncate_inode_items将free_space_inode删除
+				1.btrfs_drop_extent_cache将inode到chunk的映射em删除
+				2.将inode的extent_data记录清空，并且通过btrfs_free_extent释放所有包含inode数据的extent
+				3.保留了inode_item,inode_item是在btrfs_remove_block_group中删除
+			- btrfs_start_delalloc_roots和btrfs_wait_ordered_roots会等待所有的inode数据落盘
+			- relocate_block_group
 		3.btrfs_remove_chunk删除原有的chunk
 			- btrfs_free_dev_extent将chunk对应dev_extent释放
 			- btrfs_free_chunk将chunk记录删除

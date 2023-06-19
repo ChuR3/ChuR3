@@ -17,12 +17,6 @@
 
 对于上述的两个简单模型，可以参考[M6.046J](https://www.bilibili.com/video/BV1Kx411f7bL/?spm_id_from=333.337.search-card.all.click),有多种实现方式。这里采用vector的方式：用bitmap实现排序模型；用数组实现队列模型
 
-<div class="code-container">
-<div class="code-header">
-<h3>sched.h</h3>
-<button class="toggle-button">展开</button>
-</div>
-
 ```
 #define Array_size(array)	(sizeof(array)/sizeof(array[0]))
 #define NR_PRIORITY			(100)
@@ -64,15 +58,6 @@ inline int find_first_one(unsigned int s )
 	return count-1;
 }
 ```
-</div>
-<p/>
-
-
-<div class="code-container">
-<div class="code-header">
-<h3>scheduler.c</h3>
-<button class="toggle-button">展开</button>
-</div>
 
 ```
 #include "sched.h"
@@ -84,12 +69,7 @@ Queue task_queue[NR_PRIORITY];
 void inform_scheduler(Task *task)
 {
 	int prior=task->priority;
-	
-	//排序模型输入
-	spin_lock(bit_lock);
-	task_bitmap[ prior/sizeof(int) ] |= (1<<(prior%sizeof(int)));
-	spin_unlock(bit_lock);
-	
+		
 	//队列模型输入
 	Queue queue=task_queue[prior];
 	spin_lock(queue.queue_lock);
@@ -99,6 +79,11 @@ void inform_scheduler(Task *task)
 	assert( queue.write_idx != queue.read_idx);//队列满了，报错
 	
 	spin_unlock(queue.queue_lock);
+	
+	//排序模型输入
+	spin_lock(bit_lock);
+	task_bitmap[ prior/sizeof(int) ] |= (1<<(prior%sizeof(int)));
+	spin_unlock(bit_lock);
 	
 }
 
@@ -134,4 +119,3 @@ void schedule()
 	
 }
 ```
-</div>

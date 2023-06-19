@@ -1,145 +1,846 @@
-﻿<!DOCTYPE html>
-            <html>
-                <head>                    
-                    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-                    <meta http-equiv="content-type" content="text/html; charset=utf-8">
-                    <title>alarm的实现</title>
-					<meta name="viewport" content="width=device-width, initial-scale=1.0">
-					<link rel="stylesheet" href="../../dist/main.css">
-					<link rel="stylesheet" href="../../css/style.css">
-					<link rel="stylesheet" href="../../css/code.css">
-					<script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-               </head>
-				<body>
-    <div id="app">
-        <canvas width="1777" height="841"
-            style="position: fixed; left: 100px; right: 20px; top: 0px; z-index: 99999; pointer-events: none;">
-        </canvas>
-        <div class="container">
-            <main class="content on">
-                <section class="outer">
-                    <article id=alarm的实现 class="article article-type-post" itemscope itemprop="blogPost" data-scroll-reveal>
-                        <div class="center">
-                            <header>
-                                <h1 id="0"><a href="./alarm2.html">alarm的实现</a></h1>
-                                <p class="meta"> &middot; </p>
-                            </header>
-							     <main class="markdown-body">
-               
-<h2 id="2">alarm中断</h2>
-<p id="3">对于infineon芯片，在<a href="https://github.com/ChuR3/Personal_Repo/tree/master/doc/infineon/TC3x">TC3xx文档 part2</a>的第25.3中介绍了当CMP0和TIM0一致时将会触发一个时间中断。所以如果需要芯片实现alarm的功能，只需要将absolute_timer（cur_TIM0 + alarm_time）设置到CMP0寄存器中。随着TIM0 在晶振的作用下跳动到CMP0时，将会触发一个时间中断。</p>
-<p id="5"><img src="./sigle_alarm.png" alt="single_alarm" /></p>
-<h2 id="7">情景分析</h2>
-<p id="8">但是在软件的应用场景中，可能不止有一个alarm同时设置，例如会有以下的需求</p>
-<ol id="10">
-<li id="10">schedule_table需要设置alarm，当到达entry_point后激活task或set_event</li>
-<li id="11">如果当runnable设置为auto时，会生成一个alarm单独设置该runnable的event</li>
-<li id="12">在软件执行的过程中会有同步等待的需求，这时client会设置一个alarm然后睡眠。等待sever应答或者alarm超时后唤醒client，使其继续执行</li>
-</ol>
-<p id="14">  .....</p>
-<p id="16">在软件运行的过程中，经常需要同时实现这些需求，但是在单核上却只有一个CMP0。如果对于这些alarm需求不加管理而直接设置CMP0，将会发生资源的竞争。所以需要以下模型对alarm进行管理，实现对CMP0的线性访问。</p>
-<p id="18"><img src="./mul_alarm.png" alt="mul_alarm" /></p>
-<h2 id="20">模型抽象</h2>
-<p id="21">根据对alarm使用的情景分析，需要有一个模型对alarm进行管理，使其不发生对CMP0资源的竞争，并且能够每个alarm都满足其时间的要求。</p>
-<p id="23">设置alarm的目的是为了产生时间中断，但是alarm不是设置到CMP0中就马上产生时间中断，而是需要等到时间到达之后才会产生中断。所以如果alarm<strong>大小</strong>不同，其产生的时间中断是有先后的。</p>
-<p id="25">所以对alarm的管理，就是需要对alarm进行<strong>排序</strong>，这样alarm对应的时间中断就会按照用户需要的顺序产生。对于<strong>排序模型</strong>的实现可以参考<a href="https://www.bilibili.com/video/BV1Kx411f7bL/?spm_id_from=333.337.search-card.all.click">M6.046J</a>。在以下模型中，vector选用的是最小堆排序：每次向最小堆所要数据时，总会输出最小值。</p>
-<table id="27">
-<thead>
-<tr id="27">
-<th style="text-align: center;" id="27">算法</th>
-<th style="text-align: center;" id="27">时间复杂度</th>
-<th style="text-align: center;" id="27">空间复杂度</th>
-<th id="27">适用场景</th>
-</tr>
-</thead>
-<tbody>
-<tr id="29">
-<td style="text-align: center;" id="29">插入排序</td>
-<td style="text-align: center;" id="29">O(n2)</td>
-<td style="text-align: center;" id="29">O(n)</td>
-<td id="29">大部分已经排序。比如银行支票</td>
-</tr>
-<tr id="30">
-<td style="text-align: center;" id="30">堆排序</td>
-<td style="text-align: center;" id="30">O(nlgn)</td>
-<td style="text-align: center;" id="30">O(n)</td>
-<td id="30">最值</td>
-</tr>
-<tr id="31">
-<td style="text-align: center;" id="31">归并排序</td>
-<td style="text-align: center;" id="31">O(nlgn)</td>
-<td style="text-align: center;" id="31">O(nlgn)</td>
-<td id="31">链表</td>
-</tr>
-<tr id="32">
-<td style="text-align: center;" id="32">快速排序</td>
-<td style="text-align: center;" id="32">O(nlgn)</td>
-<td style="text-align: center;" id="32">O(n)</td>
-<td id="32">大部分情况，但是要有随机数</td>
-</tr>
-<tr id="33">
-<td style="text-align: center;" id="33">桶排序</td>
-<td style="text-align: center;" id="33">O(n)</td>
-<td style="text-align: center;" id="33">XX</td>
-<td id="33">hash排序 bitmap之类，空间复杂度取决于值范围</td>
-</tr>
-<tr id="34">
-<td style="text-align: center;" id="34">索引排序</td>
-<td style="text-align: center;" id="34">XX</td>
-<td style="text-align: center;" id="34">O(n)</td>
-<td id="34">时间复杂度取决于值的分段</td>
-</tr>
-</tbody>
-</table>
-<p id="36">以task调度为例，简单叙述alarm运行的过程：</p>
-<ol id="38">
-<li id="38">当alarm或者schedule_table去激活task时，通过SetRelAlarm设置alarm,会将其相对时间换算成相对于TIM的absolute_time,放置到最小堆中（Os_PriorityQueueHeapUp），并将最小堆中最小的alarm放置到CMP0中</li>
-</ol>
-<blockquote id="39">
-<p id="39">SetRelAlarm有3个参数： alarm对象， 定时时间  ， 以及reload的定时时间。</p>
-</blockquote>
-<ol start="2" id="41">
-<li id="41"><p id="41">当CMP0设置的时间到之后，会产生时间中断，从而激活task或者set_event.</p>
-<ul id="43">
-<li id="43">将当前响应的alarm从最小堆中移除，并重新更新最小堆（Os_PriorityQueueHeapDown）。</li>
-<li id="44">中断会检查当前的alarm是否有reload值，如果有会重新计算absolute_alarm放置到最小堆（实现task的周期执行）</li>
-<li id="45">循环检查最小堆中是否有比TIM更小的alarm，如果有直接执行，并调整最小堆</li>
-</ul>
-</li>
-<li id="46"><p id="46">中断返回，继续等待下一次时钟中断重复前两步</p>
-</li>
-</ol>
-<h2 id="48">性能分析</h2>
-<p id="49">schedule_table和auto_alarm都是激活task使task得到调度。但是schedule_table相对于auto_alarm在系统性能方面可能有着独特的优势:</p>
-<ol id="51">
-<li id="51">对于rtos而言，对于不同task的执行可能有着严格的先后顺序。对此schedule_table可以将task分布到合适的entry_point(相同的TIM基准)就能实现。但是对于auto_alarm，因为每个alarm SetRelAlarm的TIM的基准不一致，很难对task执行的先后做出严格的安排，可能需要一些类似logical sequence management的功能</li>
-<li id="52">schedule_table可以在一个时间中断中激活多个task，但是auto_alarm却只能激活一个（并且还是以runnable为单位）。所以在执行同样多的task的时，schedule_table只需要一个alarm中断，而auto_alarm就可能有多个alarm中断。</li>
-</ol>
-<p id="54">对于第2点，直观来讲多次中断会不停的pending当前任务，执行长时间的中断服务程序之后(准备context)，激活task。这毫无疑问对rtos这种time_critical的操作系统影响是比较大的。</p>
-<p id="56">这种非必要的中断切换还可能会带来代码隐性的一些bug出现。要解释这一现象需要引入<a href="https://www.bilibili.com/video/BV1HN41197Ko?p=2">程序是一组(M,R)的状态机</a></p>
-<p id="58"><img src="./state_machine.png" alt="state_machine" /></p>
-<p id="60">假设此时cpu在function1的(M1,R1)状态。如果此时发生了中断，可能cpu会出现在function2的(M53,R53)状态。现在大部分的单片机项目可能压根没有对一些内存上锁(autosar的RTE是对struct上锁了，但是带来了极大的性能损耗)，所以如果M1和M53发生内存的竞争，将会导致function2和function1都会进入到一个undefined behavior。</p>
-<p id="62">每次中断返回的时候都会发生这样状态机的随机拼接，而且在真实软件设计中，状态机模型远比描述的要多并且复杂。所以当使用auto_alarm增加时钟中断的数量(满足的功能却和schedule_table一致)将会增加软件并发时的内存竞争概率，可能引发一些极难复现的bug。</p>
+<!doctype html>
+<html>
+<head>
+<meta charset='UTF-8'><meta name='viewport' content='width=device-width initial-scale=1'>
 
-                </main>
-           
-                            <footer>
-                                <p>&copy; 2023 My Blog</p>
-                            </footer>
-                        </div>
-                    </article>
-                </section>
-				
-            </main>
-        </div>
-    </div>
+<style type='text/css'>html {overflow-x: initial !important;}:root { --bg-color:#ffffff; --text-color:#333333; --select-text-bg-color:#B5D6FC; --select-text-font-color:auto; --monospace:"Lucida Console",Consolas,"Courier",monospace; --title-bar-height:20px; }
+.mac-os-11 { --title-bar-height:28px; }
+html { font-size: 14px; background-color: var(--bg-color); color: var(--text-color); font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+body { margin: 0px; padding: 0px; height: auto; inset: 0px; font-size: 1rem; line-height: 1.42857; overflow-x: hidden; background: inherit; tab-size: 4; }
+iframe { margin: auto; }
+a.url { word-break: break-all; }
+a:active, a:hover { outline: 0px; }
+.in-text-selection, ::selection { text-shadow: none; background: var(--select-text-bg-color); color: var(--select-text-font-color); }
+#write { margin: 0px auto; height: auto; width: inherit; word-break: normal; overflow-wrap: break-word; position: relative; white-space: normal; overflow-x: visible; padding-top: 36px; }
+#write.first-line-indent p { text-indent: 2em; }
+#write.first-line-indent li p, #write.first-line-indent p * { text-indent: 0px; }
+#write.first-line-indent li { margin-left: 2em; }
+.for-image #write { padding-left: 8px; padding-right: 8px; }
+body.typora-export { padding-left: 30px; padding-right: 30px; }
+.typora-export .footnote-line, .typora-export li, .typora-export p { white-space: pre-wrap; }
+.typora-export .task-list-item input { pointer-events: none; }
+@media screen and (max-width: 500px) {
+  body.typora-export { padding-left: 0px; padding-right: 0px; }
+  #write { padding-left: 20px; padding-right: 20px; }
+  .CodeMirror-sizer { margin-left: 0px !important; }
+  .CodeMirror-gutters { display: none !important; }
+}
+#write li > figure:last-child { margin-bottom: 0.5rem; }
+#write ol, #write ul { position: relative; }
+img { max-width: 100%; vertical-align: middle; image-orientation: from-image; }
+button, input, select, textarea { color: inherit; font: inherit; }
+input[type="checkbox"], input[type="radio"] { line-height: normal; padding: 0px; }
+*, ::after, ::before { box-sizing: border-box; }
+#write h1, #write h2, #write h3, #write h4, #write h5, #write h6, #write p, #write pre { width: inherit; }
+#write h1, #write h2, #write h3, #write h4, #write h5, #write h6, #write p { position: relative; }
+p { line-height: inherit; }
+h1, h2, h3, h4, h5, h6 { break-after: avoid-page; break-inside: avoid; orphans: 4; }
+p { orphans: 4; }
+h1 { font-size: 2rem; }
+h2 { font-size: 1.8rem; }
+h3 { font-size: 1.6rem; }
+h4 { font-size: 1.4rem; }
+h5 { font-size: 1.2rem; }
+h6 { font-size: 1rem; }
+.md-math-block, .md-rawblock, h1, h2, h3, h4, h5, h6, p { margin-top: 1rem; margin-bottom: 1rem; }
+.hidden { display: none; }
+.md-blockmeta { color: rgb(204, 204, 204); font-weight: 700; font-style: italic; }
+a { cursor: pointer; }
+sup.md-footnote { padding: 2px 4px; background-color: rgba(238, 238, 238, 0.7); color: rgb(85, 85, 85); border-radius: 4px; cursor: pointer; }
+sup.md-footnote a, sup.md-footnote a:hover { color: inherit; text-transform: inherit; text-decoration: inherit; }
+#write input[type="checkbox"] { cursor: pointer; width: inherit; height: inherit; }
+figure { overflow-x: auto; margin: 1.2em 0px; max-width: calc(100% + 16px); padding: 0px; }
+figure > table { margin: 0px; }
+tr { break-inside: avoid; break-after: auto; }
+thead { display: table-header-group; }
+table { border-collapse: collapse; border-spacing: 0px; width: 100%; overflow: auto; break-inside: auto; text-align: left; }
+table.md-table td { min-width: 32px; }
+.CodeMirror-gutters { border-right: 0px; background-color: inherit; }
+.CodeMirror-linenumber { user-select: none; }
+.CodeMirror { text-align: left; }
+.CodeMirror-placeholder { opacity: 0.3; }
+.CodeMirror pre { padding: 0px 4px; }
+.CodeMirror-lines { padding: 0px; }
+div.hr:focus { cursor: none; }
+#write pre { white-space: pre-wrap; }
+#write.fences-no-line-wrapping pre { white-space: pre; }
+#write pre.ty-contain-cm { white-space: normal; }
+.CodeMirror-gutters { margin-right: 4px; }
+.md-fences { font-size: 0.9rem; display: block; break-inside: avoid; text-align: left; overflow: visible; white-space: pre; background: inherit; position: relative !important; }
+.md-fences-adv-panel { width: 100%; margin-top: 10px; text-align: center; padding-top: 0px; padding-bottom: 8px; overflow-x: auto; }
+#write .md-fences.mock-cm { white-space: pre-wrap; }
+.md-fences.md-fences-with-lineno { padding-left: 0px; }
+#write.fences-no-line-wrapping .md-fences.mock-cm { white-space: pre; overflow-x: auto; }
+.md-fences.mock-cm.md-fences-with-lineno { padding-left: 8px; }
+.CodeMirror-line, twitterwidget { break-inside: avoid; }
+.footnotes { opacity: 0.8; font-size: 0.9rem; margin-top: 1em; margin-bottom: 1em; }
+.footnotes + .footnotes { margin-top: 0px; }
+.md-reset { margin: 0px; padding: 0px; border: 0px; outline: 0px; vertical-align: top; background: 0px 0px; text-decoration: none; text-shadow: none; float: none; position: static; width: auto; height: auto; white-space: nowrap; cursor: inherit; -webkit-tap-highlight-color: transparent; line-height: normal; font-weight: 400; text-align: left; box-sizing: content-box; direction: ltr; }
+li div { padding-top: 0px; }
+blockquote { margin: 1rem 0px; }
+li .mathjax-block, li p { margin: 0.5rem 0px; }
+li blockquote { margin: 1rem 0px; }
+li { margin: 0px; position: relative; }
+blockquote > :last-child { margin-bottom: 0px; }
+blockquote > :first-child, li > :first-child { margin-top: 0px; }
+.footnotes-area { color: rgb(136, 136, 136); margin-top: 0.714rem; padding-bottom: 0.143rem; white-space: normal; }
+#write .footnote-line { white-space: pre-wrap; }
+@media print {
+  body, html { border: 1px solid transparent; height: 99%; break-after: avoid; break-before: avoid; font-variant-ligatures: no-common-ligatures; }
+  #write { margin-top: 0px; padding-top: 0px; border-color: transparent !important; }
+  .typora-export * { -webkit-print-color-adjust: exact; }
+  .typora-export #write { break-after: avoid; }
+  .typora-export #write::after { height: 0px; }
+  .is-mac table { break-inside: avoid; }
+  .typora-export-show-outline .typora-export-sidebar { display: none; }
+}
+.footnote-line { margin-top: 0.714em; font-size: 0.7em; }
+a img, img a { cursor: pointer; }
+pre.md-meta-block { font-size: 0.8rem; min-height: 0.8rem; white-space: pre-wrap; background: rgb(204, 204, 204); display: block; overflow-x: hidden; }
+p > .md-image:only-child:not(.md-img-error) img, p > img:only-child { display: block; margin: auto; }
+#write.first-line-indent p > .md-image:only-child:not(.md-img-error) img { left: -2em; position: relative; }
+p > .md-image:only-child { display: inline-block; width: 100%; }
+#write .MathJax_Display { margin: 0.8em 0px 0px; }
+.md-math-block { width: 100%; }
+.md-math-block:not(:empty)::after { display: none; }
+.MathJax_ref { fill: currentcolor; }
+[contenteditable="true"]:active, [contenteditable="true"]:focus, [contenteditable="false"]:active, [contenteditable="false"]:focus { outline: 0px; box-shadow: none; }
+.md-task-list-item { position: relative; list-style-type: none; }
+.task-list-item.md-task-list-item { padding-left: 0px; }
+.md-task-list-item > input { position: absolute; top: 0px; left: 0px; margin-left: -1.2em; margin-top: calc(1em - 10px); border: none; }
+.math { font-size: 1rem; }
+.md-toc { min-height: 3.58rem; position: relative; font-size: 0.9rem; border-radius: 10px; }
+.md-toc-content { position: relative; margin-left: 0px; }
+.md-toc-content::after, .md-toc::after { display: none; }
+.md-toc-item { display: block; color: rgb(65, 131, 196); }
+.md-toc-item a { text-decoration: none; }
+.md-toc-inner:hover { text-decoration: underline; }
+.md-toc-inner { display: inline-block; cursor: pointer; }
+.md-toc-h1 .md-toc-inner { margin-left: 0px; font-weight: 700; }
+.md-toc-h2 .md-toc-inner { margin-left: 2em; }
+.md-toc-h3 .md-toc-inner { margin-left: 4em; }
+.md-toc-h4 .md-toc-inner { margin-left: 6em; }
+.md-toc-h5 .md-toc-inner { margin-left: 8em; }
+.md-toc-h6 .md-toc-inner { margin-left: 10em; }
+@media screen and (max-width: 48em) {
+  .md-toc-h3 .md-toc-inner { margin-left: 3.5em; }
+  .md-toc-h4 .md-toc-inner { margin-left: 5em; }
+  .md-toc-h5 .md-toc-inner { margin-left: 6.5em; }
+  .md-toc-h6 .md-toc-inner { margin-left: 8em; }
+}
+a.md-toc-inner { font-size: inherit; font-style: inherit; font-weight: inherit; line-height: inherit; }
+.footnote-line a:not(.reversefootnote) { color: inherit; }
+.md-attr { display: none; }
+.md-fn-count::after { content: "."; }
+code, pre, samp, tt { font-family: var(--monospace); }
+kbd { margin: 0px 0.1em; padding: 0.1em 0.6em; font-size: 0.8em; color: rgb(36, 39, 41); background: rgb(255, 255, 255); border: 1px solid rgb(173, 179, 185); border-radius: 3px; box-shadow: rgba(12, 13, 14, 0.2) 0px 1px 0px, rgb(255, 255, 255) 0px 0px 0px 2px inset; white-space: nowrap; vertical-align: middle; }
+.md-comment { color: rgb(162, 127, 3); opacity: 0.6; font-family: var(--monospace); }
+code { text-align: left; vertical-align: initial; }
+a.md-print-anchor { white-space: pre !important; border-width: initial !important; border-style: none !important; border-color: initial !important; display: inline-block !important; position: absolute !important; width: 1px !important; right: 0px !important; outline: 0px !important; background: 0px 0px !important; text-decoration: initial !important; text-shadow: initial !important; }
+.os-windows.monocolor-emoji .md-emoji { font-family: "Segoe UI Symbol", sans-serif; }
+.md-diagram-panel > svg { max-width: 100%; }
+[lang="flow"] svg, [lang="mermaid"] svg { max-width: 100%; height: auto; }
+[lang="mermaid"] .node text { font-size: 1rem; }
+table tr th { border-bottom: 0px; }
+video { max-width: 100%; display: block; margin: 0px auto; }
+iframe { max-width: 100%; width: 100%; border: none; }
+.highlight td, .highlight tr { border: 0px; }
+mark { background: rgb(255, 255, 0); color: rgb(0, 0, 0); }
+.md-html-inline .md-plain, .md-html-inline strong, mark .md-inline-math, mark strong { color: inherit; }
+.md-expand mark .md-meta { opacity: 0.3 !important; }
+mark .md-meta { color: rgb(0, 0, 0); }
+@media print {
+  .typora-export h1, .typora-export h2, .typora-export h3, .typora-export h4, .typora-export h5, .typora-export h6 { break-inside: avoid; }
+}
+.md-diagram-panel .messageText { stroke: none !important; }
+.md-diagram-panel .start-state { fill: var(--node-fill); }
+.md-diagram-panel .edgeLabel rect { opacity: 1 !important; }
+.md-fences.md-fences-math { font-size: 1em; }
+.md-fences-advanced:not(.md-focus) { padding: 0px; white-space: nowrap; border: 0px; }
+.md-fences-advanced:not(.md-focus) { background: inherit; }
+.typora-export-show-outline .typora-export-content { max-width: 1440px; margin: auto; display: flex; flex-direction: row; }
+.typora-export-sidebar { width: 300px; font-size: 0.8rem; margin-top: 80px; margin-right: 18px; }
+.typora-export-show-outline #write { --webkit-flex:2; flex: 2 1 0%; }
+.typora-export-sidebar .outline-content { position: fixed; top: 0px; max-height: 100%; overflow: hidden auto; padding-bottom: 30px; padding-top: 60px; width: 300px; }
+@media screen and (max-width: 1024px) {
+  .typora-export-sidebar, .typora-export-sidebar .outline-content { width: 240px; }
+}
+@media screen and (max-width: 800px) {
+  .typora-export-sidebar { display: none; }
+}
+.outline-content li, .outline-content ul { margin-left: 0px; margin-right: 0px; padding-left: 0px; padding-right: 0px; list-style: none; }
+.outline-content ul { margin-top: 0px; margin-bottom: 0px; }
+.outline-content strong { font-weight: 400; }
+.outline-expander { width: 1rem; height: 1.42857rem; position: relative; display: table-cell; vertical-align: middle; cursor: pointer; padding-left: 4px; }
+.outline-expander::before { content: ""; position: relative; font-family: Ionicons; display: inline-block; font-size: 8px; vertical-align: middle; }
+.outline-item { padding-top: 3px; padding-bottom: 3px; cursor: pointer; }
+.outline-expander:hover::before { content: ""; }
+.outline-h1 > .outline-item { padding-left: 0px; }
+.outline-h2 > .outline-item { padding-left: 1em; }
+.outline-h3 > .outline-item { padding-left: 2em; }
+.outline-h4 > .outline-item { padding-left: 3em; }
+.outline-h5 > .outline-item { padding-left: 4em; }
+.outline-h6 > .outline-item { padding-left: 5em; }
+.outline-label { cursor: pointer; display: table-cell; vertical-align: middle; text-decoration: none; color: inherit; }
+.outline-label:hover { text-decoration: underline; }
+.outline-item:hover { border-color: rgb(245, 245, 245); background-color: var(--item-hover-bg-color); }
+.outline-item:hover { margin-left: -28px; margin-right: -28px; border-left: 28px solid transparent; border-right: 28px solid transparent; }
+.outline-item-single .outline-expander::before, .outline-item-single .outline-expander:hover::before { display: none; }
+.outline-item-open > .outline-item > .outline-expander::before { content: ""; }
+.outline-children { display: none; }
+.info-panel-tab-wrapper { display: none; }
+.outline-item-open > .outline-children { display: block; }
+.typora-export .outline-item { padding-top: 1px; padding-bottom: 1px; }
+.typora-export .outline-item:hover { margin-right: -8px; border-right: 8px solid transparent; }
+.typora-export .outline-expander::before { content: "+"; font-family: inherit; top: -1px; }
+.typora-export .outline-expander:hover::before, .typora-export .outline-item-open > .outline-item > .outline-expander::before { content: "−"; }
+.typora-export-collapse-outline .outline-children { display: none; }
+.typora-export-collapse-outline .outline-item-open > .outline-children, .typora-export-no-collapse-outline .outline-children { display: block; }
+.typora-export-no-collapse-outline .outline-expander::before { content: "" !important; }
+.typora-export-show-outline .outline-item-active > .outline-item .outline-label { font-weight: 700; }
+.md-inline-math-container mjx-container { zoom: 0.95; }
+
+
+/* 
+ *   Typora Theme - Lapis  /  Author - YiNN 
+ *   https://github.com/YiNNx/typora-theme-lapis
+ */
+
+ :root {
+  --text-color: rgb(58 64 73 / 97%);
+  --primary-color: #4870ac;
+  --block-background-color: #f6f8fa;
+  --marker-color: #a2b6d4;
+  --control-text-hover-color: #a2b6d4;
+}
+
+/*
+ * Font-face for Cantarell, Source Han Serif CN and JetBrains Mono
+ */
+
+/*
+ * Basic Style
+ */
+
+#write {
+    max-width: 950px;
+    font-size: 1.1rem;
+    color: var(--text-color);
+    line-height: 1.6;
+    word-spacing: 0px;
+    letter-spacing: 0px;
+    word-break: break-word;
+    word-wrap: break-word;
+    text-align: justify;
+    
+    /* font-family: 'Cantarell','Source Han Serif CN','JetBrains Mono'; */
+    font-family: 'Cantarell','SourceHanSerifCN','JetBrainsMono';
+    margin-bottom: 20rem;
+}
+
+/* Strong */
+
+#write strong {
+  color:var(--primary-color);
+}
+
+/* Link */
+
+#write a  {
+  color: var(--primary-color);
+}
+
+#write .md-p a,
+#write .md-heading a {
+  text-decoration: none;
+  word-wrap: break-word;
+  border-bottom: 1px solid var(--primary-color);
+  margin: 2px;
+}
+
+[md-inline=url], [md-inline=link]>.md-content, [md-inline=image]>.md-meta {
+  word-break: break-all;
+  font-weight: normal;
+  font-family: 'JetBrainsMono';
+  padding-left: 0.15rem;
+  padding-right: 0.15rem;
+  color: #a2b6d4;
+}
+
+/* 
+ * TOC
+ */
+
+.md-toc-content {
+  font-family: 'SourceHanSerifCN';
+}
+
+/* mark */
+
+mark {
+  background: #ffffb5;
+  padding: 1px .15rem;
+  border-radius: 1px;
+  color: inherit;
+}
+
+/* 
+ * Paragraph
+ */
+
+#write + p, 
+#write blockquote p {
+  font-size: 1.0rem;
+  padding-top: .2rem;
+  padding-bottom: .2rem;
+  margin: 0;
+  line-height: 1.8rem;
+  color: #9a9a9a !important;
+}
+
+#write div[mdtype=toc] {
+  font-size: 1.1rem;
+}
+
+
+
+/*
+ * Header
+ */
+
+#write h1,
+#write h2,
+#write h3,
+#write h4,
+#write h5,
+#write h6 {
+  font-family: 'SourceHanSerifCN';
+  padding: 0px;
+  color: var(--primary-color);
+}
+
+#write h1 {
+  text-align: center;
+}
+
+#write h2 span.md-plain {
+  background: var(--primary-color);
+  padding: 1px 15px 2px;
+  border-radius: 4px;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+#write h2 span.md-link {
+ background: var(--primary-color);
+ padding: 1px 11px 6px;
+ border-radius: 4px;
+}
+
+#write h2 span.md-link .md-plain {
+  background: #ffffff00;
+  padding: 1px 0px 3px;
+}
+
+#write h2 span.md-content {
+ color: #ffffff;
+}
+
+#write h2.md-heading a {
+  border-bottom: 1px solid white;
+}
+
+@media print{
+  #write h2 span {
+     display: inline-block;
+     font-weight: bold;
+     background: var(--primary-color);
+     color: #ffffff;
+     padding: 1px 15px 1px;
+     border-radius: 4px;
+     margin-right: 3px;
+    }
+}
+
+#write h1 { font-size: 2rem; }
+#write h2 { font-size: 1.5rem; }
+#write h3 { font-size: 1.4rem; }
+#write h4 { font-size: 1.2rem; }
+#write h5 { font-size: 1.1rem; }
+#write h6 { font-size: 1.1rem; }
+
+#write h1 {
+  padding-top: 0.9rem;
+  margin-bottom: 2.3rem;
+}
+
+#write h2 {
+  margin: 1.2em 0 1.2em;
+}
+
+#write h3 { margin: 1em 0 1em; }
+#write h4 { margin: 0.8em 0 0.8em; }
+#write h5 { margin: 0.6em 0 0.6em; }
+#write h6 { margin: 0.4em 0 0.4em; }
+
+/*
+ * List
+ */
+
+::marker {
+  font-weight: bold;
+  color: var(--marker-color);
+}
+
+li.md-list-item {
+  margin: 0.4rem 0;
+}
+
+#write ul,
+#write ol {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  padding-left: 20px;
+}
+
+#write ul {
+  list-style-type: disc;
+}
+
+#write em {
+  padding: 0 3px 0 0;
+}
+
+#write ul ul {
+  list-style-type: square;
+}
+
+#write ol {
+  list-style-type: decimal;
+}
+
+#write li section {
+  margin-top: 5px;
+  margin-bottom: 5px;
+  line-height: 1.7rem;
+  text-align: justify;
+  color: var(--text-color); 
+  font-weight: 500;
+}
+
+/*
+ * Quote
+ */
+#write blockquote {
+  display: block;
+  font-size: .9em;
+  overflow: auto;
+  border-left: 3px solid var(--primary-color);
+  padding: 15px 30px 15px 20px;
+  margin-bottom: 20px;
+  margin-top: 20px;
+  background: var(--block-background-color);
+}
+
+/*
+ * Inline code
+ */
+
+#write code {
+  color: var(--primary-color);
+  font-size: 94%;
+  font-weight: normal;
+  word-wrap: break-word;
+  padding: 2px 4px 2px;
+  border-radius: 3px;
+  margin: 2px;
+  background-color:  var(--block-background-color);
+  font-family: 'JetBrainsMono';
+  word-break: break-all;
+}
+
+/*
+ * Img
+ */
+#write img {
+  margin: 0 auto;
+  max-width: 100%;
+}
+
+#write span img {
+  filter: drop-shadow(#d2dff4 0px 0px 8px);
+  border-radius: 3rem;
+  display: block;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+/*
+ * Table
+ */
+#write table {
+  display: table;
+  text-align: justify;
+  overflow-x: auto;
+  border-collapse: collapse;
+  border-spacing: 0px;
+  font-size: 1em;
+  margin: 0px 0px 20px;
+  width: 100%;
+}
+
+#write tbody {
+  border: 0;
+}
+#write table tr {
+  border: 0;
+  border-top: 1px solid #ccc;
+}
+
+#write table tr th,
+#write table tr th, #write table tr td {
+  font-size: 1rem;
+  border: 1px solid #d9dfe4;
+  padding: 5px 10px;
+  text-align: justify;
+}
+#write table tr th {
+  text-align: center;
+  min-width: 10rem;
+  font-weight: bold;
+  color: var(--primary-color);
+}
+
+table.md-table td {
+  min-width: 32px;
+}
+
+/*
+ * Footnote Superscript
+ */
+#write .md-footnote {
+ font-weight: bold;
+}
+#write .md-footnote > .md-text:before {
+ content: '[';
+}
+#write .md-footnote > .md-text:after {
+ content: ']';
+
+}
+
+/* Footnote */
+
+.footnotes {
+  opacity: 1;
+  font-size: 0.95rem;
+}
+
+#write .md-def-name {
+  padding-right: 1.8ch;
+}
+#write .md-def-name:before {
+  content: '[';
+  color: var(--text-color);
+}
+#write .md-def-name:after {
+  color: var(--text-color);
+}
+
+span.md-plain {
+    line-height: 2rem;
+}
+
+p.md-end-block.md-p {
+    line-height: 2rem;
+    color: var(--text-color);
+    margin: 4px 0;
+}
+
+/* 
+ * Comment
+ */
+.md-comment {
+  color: #b4bad4;
+  opacity: 1;
+  font-family: 'JetBrainsMono';
+}
+
+/*
+ * Dividing line
+ */
+hr {
+  margin-top: 20px;
+  margin-bottom: 20px;
+  border: 0;
+  border-top: 2px solid #eef2f5;
+  border-radius: 2px;
+}
+
+/* Checkbox */
+
+#write input[type=checkbox] {
+  width: 0;
+}
+
+.task-list-item input::before {
+  content: "";
+  display: inline-block;
+  width: 1.0125rem;
+  height: 1.0125rem;
+  vertical-align: middle;
+  text-align: center;
+  border: 1px solid var(--marker-color);
+  border-radius: 1.2rem;
+  background-color: #fdfdfd;
+  margin-left: -0.1rem;
+  margin-right: 0.1rem;
+  margin-top: -.6rem;
+}
+
+
+.task-list-item input:checked::before {
+  content: '✓';
+  font-weight: bold;
+  -webkit-text-stroke: 1px var(--primary-color);
+  color: var(--primary-color);
+  background-color: white;
+  font-size: 0.75rem;
+  line-height: 0.8rem;
+}
+
+/*
+ * Sidebar
+ */
+#typora-sidebar {
+  font-family: 'Cantarell','Source Han Serif CN';
+  height: 100%;
+  color: #686d75;
+  font-size: 0.92rem;
+  background-color: white;
+}
+
+#sidebar-content.sidebar-content {
+  margin-top: .5rem;
+}
+
+/*
+ * Sidebar - FileNode
+ */
+
+.active-tab-files #info-panel-tab-file .info-panel-tab-border,
+.active-tab-outline #info-panel-tab-outline .info-panel-tab-border,
+.ty-show-search #info-panel-tab-search .info-panel-tab-border {
+  border-radius:10px;
+  height: 1px;
+  background-color: var(--primary-color);
+}
+
+.file-node-content {
+   color: var(--primary-color); 
+   line-height: 1.6rem;
+  }
+
+span.file-node-title-name-part  { color: var(--text-color); }
+span.file-node-title-ext-part { color: var(--text-color); }
+.file-node-icon { padding-right: 0.2rem; }
+
+.file-tree-node.active>.file-node-background {
+  background-color: var(--block-background-color);
+  border-left: 4px solid var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+/*
+ * Sidebar - Outline
+ */
+
+#outline-content {
+  height: 100%;
+  overflow-x: hidden;
+  line-height: 1.4rem;
+  font-size: .96rem;
+}
+
+.outline-item {
+  padding-left: 2em;
+}
+
+/* Meta Block */
+
+pre.md-meta-block {
+  font-family: 'JetBrainsMono';
+  color: var(--primary-color);
+  background: #f6f8fa;
+  padding: 1.5rem;
+  margin: -37px 0rem 3.8rem;
+  /* border-radius: 1rem; */
+  filter: drop-shadow(#d2dff4 0px 3px 3px);
+  /* border-top: 1px solid var(--primary-color); */
+  /* border-bottom: 1px solid var(--primary-color); */
+}
+
+/*
+ * Scrollbar
+ */
+
+#outline-content::-webkit-scrollbar { width: 0; }
+#file-library::-webkit-scrollbar { width: 0; }
+
+::-webkit-scrollbar-track {
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  background: rgba(179, 179, 179, 0.425);
+}
+
+::-webkit-scrollbar {
+  width :1rem;
+}
+
+/* 
+ * Code Block - Style
+ */
+
+.md-fences:before {
+  content: ' ';
+  display: block;
+  width: 100%;
+  background-size: 40px;
+  background-repeat: no-repeat;
+  background-color: #282c34;
+  margin-bottom: -7px;
+  border-radius: 5px;
+  background-position: 10px 10px;
+}
+
+.CodeMirror-wrap .CodeMirror-scroll {
+  overflow-x: auto;
+}
+.cm-s-inner.CodeMirror {
+  margin: 2rem 0;
+  padding: 1.2rem .8rem;
+  color: #4f5467;
+  font-family: 'JetBrainsMono';
+  border-radius: 10px;
+  background-color: var(--block-background-color);
+  /* border: 1px solid #eef2f5;*/
+  line-height: 1.6rem;
+}
+
+.CodeMirror-gutters {
+  border-right: 1px solid #a2b6d452;
+  background: inherit;
+  white-space: nowrap;
+}
+
+pre.CodeMirror-line {
+  padding: 0 1.2rem;
+}
+
+.CodeMirror-linenumber {
+  padding: 0 3px 0 5px;
+  text-align: right;
+  color: var(--primary-color);
+}
+
+/* 
+ * Code Block - Color Scheme
+ */
+
+.cm-s-inner .cm-keyword {
+  color: #1694b6 !important;
+}
+.cm-s-inner .cm-operator {
+  color: #2f86d2 !important;
+}
+.cm-s-inner .cm-variable,
+.cm-s-inner .cm-builtin,
+.cm-s-inner .cm-header,
+.cm-s-inner .cm-tag,
+.cm-s-inner .cm-property,
+.cm-s-inner .cm-quote {
+  color: #b9218e !important;
+}
+
+.cm-s-inner .cm-variable-2 {
+  color: #7aadad !important;
+}
+.cm-s-inner .cm-variable-3,
+.cm-s-inner .cm-type,
+.cm-s-inner .cm-atom {
+  color: #378ed8 !important;
+}
+
+.cm-s-inner .cm-number {
+  color: #1a5494 !important;
+}
+.cm-s-inner .cm-def,
+.cm-s-inner .cm-qualifier {
+  color: #0744ac !important;
+}
+.cm-s-inner .cm-string {
+  color: #6f42c2 !important;
+}
+.cm-s-inner .cm-string-2 {
+  color: #27638f !important;
+}
+.cm-s-inner .cm-comment {
+  color: #9a9a9a !important;
+}
+
+.cm-s-inner .cm-meta {
+  color: #0b93be !important;
+}
+.cm-s-inner .cm-attribute {
+  color: #8f6aa8 !important;
+}
+
+.cm-s-inner .cm-error {
+  color: rgba(255, 255, 255, 1) !important;
+  background-color: #b9218e40 !important;
+}
+.cm-s-inner .CodeMirror-matchingbracket {
+  text-decoration: underline;
+  color: white !important;
+}
+.CodeMirror div.CodeMirror-cursor {
+  border-left: 1px solid var(--primary-color);
+  z-index: 3;
+}
+
+.cm-s-inner div.CodeMirror-selected {
+  background: rgba(167, 178, 189, 0.2) !important;
+}
+
+.cm-s-inner.CodeMirror-focused div.CodeMirror-selected {
+  background: rgba(167, 178, 189, 0.2) !important;
+}
+
+.cm-s-inner .CodeMirror-selected,
+.cm-s-inner .CodeMirror-selectedtext {
+  background-color: rgba(167, 178, 189, 0.0) !important;
+}
+
+.cm-s-inner .CodeMirror-line::-moz-selection,
+.cm-s-inner .CodeMirror-line > span::-moz-selection,
+.cm-s-inner .CodeMirror-line > span > span::-moz-selection {
+  background-color: rgba(167, 178, 189, 0.2);
+}
+
+.cm-s-inner .CodeMirror-line::selection,
+.cm-s-inner .CodeMirror-line > span::selection,
+.cm-s-inner .CodeMirror-line > span > span::selection {
+  background-color: rgba(167, 178, 189, 0.2);
+}
+
+
+
+</style><title>alarm1</title>
+</head>
+<body class='typora-export os-windows'><div class='typora-export-content'>
+<div id='write'  class=''><h1 id='alarm的实现'><a href='./alarm2.html'><span>alarm的实现</span></a></h1><h2 id='alarm中断'><span>alarm中断</span></h2><p><span>对于infineon芯片，在</span><a href='https://github.com/ChuR3/Personal_Repo/tree/master/doc/infineon/TC3x'><span>TC3xx文档 part2</span></a><span>的第25.3中介绍了当CMP0和TIM0一致时将会触发一个时间中断。所以如果需要芯片实现alarm的功能，只需要将absolute_timer（cur_TIM0 + alarm_time）设置到CMP0寄存器中。随着TIM0 在晶振的作用下跳动到CMP0时，将会触发一个时间中断。</span></p><p><img src="./sigle_alarm.png" referrerpolicy="no-referrer" alt="single_alarm"></p><h2 id='情景分析'><span>情景分析</span></h2><p><span>但是在软件的应用场景中，可能不止有一个alarm同时设置，例如会有以下的需求</span></p><ol start='' ><li><span>schedule_table需要设置alarm，当到达entry_point后激活task或set_event</span></li><li><span>如果当runnable设置为auto时，会生成一个alarm单独设置该runnable的event</span></li><li><span>在软件执行的过程中会有同步等待的需求，这时client会设置一个alarm然后睡眠。等待sever应答或者alarm超时后唤醒client，使其继续执行</span></li></ol><p>&emsp;&emsp;<span>.....</span></p><p><span>在软件运行的过程中，经常需要同时实现这些需求，但是在单核上却只有一个CMP0。如果对于这些alarm需求不加管理而直接设置CMP0，将会发生资源的竞争。所以需要以下模型对alarm进行管理，实现对CMP0的线性访问。</span></p><p><img src="./mul_alarm.png" referrerpolicy="no-referrer" alt="mul_alarm"></p><h2 id='模型抽象'><span>模型抽象</span></h2><p><span>根据对alarm使用的情景分析，需要有一个模型对alarm进行管理，使其不发生对CMP0资源的竞争，并且能够每个alarm都满足其时间的要求。</span></p><p><span>设置alarm的目的是为了产生时间中断，但是alarm不是设置到CMP0中就马上产生时间中断，而是需要等到时间到达之后才会产生中断。所以如果alarm</span><strong><span>大小</span></strong><span>不同，其产生的时间中断是有先后的。</span></p><p><span>所以对alarm的管理，就是需要对alarm进行</span><strong><span>排序</span></strong><span>，这样alarm对应的时间中断就会按照用户需要的顺序产生。对于</span><strong><span>排序模型</span></strong><span>的实现可以参考</span><a href='https://www.bilibili.com/video/BV1Kx411f7bL/?spm_id_from=333.337.search-card.all.click'><span>M6.046J</span></a><span>。在以下模型中，vector选用的是最小堆排序：每次向最小堆所要数据时，总会输出最小值。</span></p><figure><table><thead><tr><th><span>算法</span></th><th><span>时间复杂度</span></th><th><span>空间复杂度</span></th><th><span>适用场景</span></th></tr></thead><tbody><tr><td><span>插入排序</span></td><td><span>O(n2)</span></td><td><span>O(n)</span></td><td><span>大部分已经排序。比如银行支票</span></td></tr><tr><td><span>堆排序</span></td><td><span>O(nlgn)</span></td><td><span>O(n)</span></td><td><span>最值</span></td></tr><tr><td><span>归并排序</span></td><td><span>O(nlgn)</span></td><td><span>O(nlgn)</span></td><td><span>链表</span></td></tr><tr><td><span>快速排序</span></td><td><span>O(nlgn)</span></td><td><span>O(n)</span></td><td><span>大部分情况，但是要有随机数</span></td></tr><tr><td><span>桶排序</span></td><td><span>O(n)</span></td><td><span>XX</span></td><td><span>hash排序 bitmap之类，空间复杂度取决于值范围</span></td></tr><tr><td><span>索引排序</span></td><td><span>XX</span></td><td><span>O(n)</span></td><td><span>时间复杂度取决于值的分段</span></td></tr></tbody></table></figure><p><span>以task调度为例，简单叙述alarm运行的过程：</span></p><ol start='' ><li><span>当alarm或者schedule_table去激活task时，通过SetRelAlarm设置alarm,会将其相对时间换算成相对于TIM的absolute_time,放置到最小堆中（Os_PriorityQueueHeapUp），并将最小堆中最小的alarm放置到CMP0中</span></li></ol><blockquote><p><span>SetRelAlarm有3个参数： alarm对象， 定时时间  ， 以及reload的定时时间。</span></p></blockquote><ol start='2' ><li><p><span>当CMP0设置的时间到之后，会产生时间中断，从而激活task或者set_event.</span></p><ul><li><span>将当前响应的alarm从最小堆中移除，并重新更新最小堆（Os_PriorityQueueHeapDown）。</span></li><li><span>中断会检查当前的alarm是否有reload值，如果有会重新计算absolute_alarm放置到最小堆（实现task的周期执行）</span></li><li><span>循环检查最小堆中是否有比TIM更小的alarm，如果有直接执行，并调整最小堆</span></li></ul></li><li><p><span>中断返回，继续等待下一次时钟中断重复前两步</span></p></li></ol><h2 id='性能分析'><span>性能分析</span></h2><p><span>schedule_table和auto_alarm都是激活task使task得到调度。但是schedule_table相对于auto_alarm在系统性能方面可能有着独特的优势:</span></p><ol start='' ><li><span>对于rtos而言，对于不同task的执行可能有着严格的先后顺序。对此schedule_table可以将task分布到合适的entry_point(相同的TIM基准)就能实现。但是对于auto_alarm，因为每个alarm SetRelAlarm的TIM的基准不一致，很难对task执行的先后做出严格的安排，可能需要一些类似logical sequence management的功能</span></li><li><span>schedule_table可以在一个时间中断中激活多个task，但是auto_alarm却只能激活一个（并且还是以runnable为单位）。所以在执行同样多的task的时，schedule_table只需要一个alarm中断，而auto_alarm就可能有多个alarm中断。</span></li></ol><p><span>对于第2点，直观来讲多次中断会不停的pending当前任务，执行长时间的中断服务程序之后(准备context)，激活task。这毫无疑问对rtos这种time_critical的操作系统影响是比较大的。</span></p><p><span>这种非必要的中断切换还可能会带来代码隐性的一些bug出现。要解释这一现象需要引入</span><a href='https://www.bilibili.com/video/BV1HN41197Ko?p=2'><span>程序是一组(M,R)的状态机</span></a></p><p><img src="./state_machine.png" referrerpolicy="no-referrer" alt="state_machine"></p><p><span>假设此时cpu在function1的(M1,R1)状态。如果此时发生了中断，可能cpu会出现在function2的(M53,R53)状态。现在大部分的单片机项目可能压根没有对一些内存上锁(autosar的RTE是对struct上锁了，但是带来了极大的性能损耗)，所以如果M1和M53发生内存的竞争，将会导致function2和function1都会进入到一个undefined behavior。</span></p><p><span>每次中断返回的时候都会发生这样状态机的随机拼接，而且在真实软件设计中，状态机模型远比描述的要多并且复杂。所以当使用auto_alarm增加时钟中断的数量(满足的功能却和schedule_table一致)将会增加软件并发时的内存竞争的概率，可能引发一些极难复现的bug。</span></p></div></div>
 </body>
-<script type="text/javascript">
-if(!/Android|webOS|iPhone|iPod|BlackBerry/i.test(navigator.userAgent)){
-  <!--设置标签样式document.write('<script type="text/javascript" src="../../js/FunnyTitle.js"><\/script>');-->
-  document.write('<script type="text/javascript" src="../../js/snow.js"><\/script>');
- }
-</script>
-<script src="../../js/code.js"></script>
-			</html>
-            
+</html>
