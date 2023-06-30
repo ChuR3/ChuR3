@@ -1,4 +1,4 @@
-# Btrfs之RAID：Chunk抽象和使用
+# Btrfs之RAID(一)：Chunk抽象和使用
 
 [RAID](https://www.bilibili.com/video/BV1N741177F5?p=29)将物理device抽象成上层逻辑chunk，让上层软件可以像访问数组一样访问device。这层封装既能并发的读写device，加快文件的读写速度；也能对device做备份，保证一定数量的device失效后数据仍然可以恢复。
 

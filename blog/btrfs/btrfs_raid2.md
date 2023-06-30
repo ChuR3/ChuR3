@@ -1,4 +1,4 @@
-# Btrfs之RAID：RAID读写
+# Btrfs之RAID(二)：RAID读写
 Btrfs在读(__do_readpage)写(btrfs_writepages)文件时，会查询inode的逻辑地址到底层的映射(extent_map)。如果使用[RAID](./btrfs_raid1.html)将device抽象成chunk，那么Btrfs在extent_map中查询到的是chunk的地址，所以需要RAID进一步将chunk的地址映射到device上，然后根据RAID类型对相应的device进行读写。
 
 ## Btrfs提交bio
@@ -210,7 +210,7 @@ int btrfs_map_bio(struct btrfs_root *root, int rw, struct bio *bio,
 		 			1.通过p q stripe恢复数据后，将恢复的数据设置为SetPageUptodate
 		 			2.如果是读取正确恢复，会将数据缓存到stripe_pages中，并通知Btrfs
 		 			3.如果是parition_stripe写操作，读取正常恢复，会继续通过finish_rmw完成full_stripe落盘
-		 			4.当replace dev时，会将rbio标记为BTRFS_RBIO_PARITY_SCRUB，用于恢复新dev上parity的数据(其他数据可能是在用的时候，读取发现crc有问题，然后在进行恢复)
+		 			4.当replace dev时，会将rbio标记为BTRFS_RBIO_PARITY_SCRUB，用于replace tgt_dev上parity的数据
 		 			  - 首先通过raid56_parity_scrub_stripe将要求恢复的page数组rbio.dbitmap中标记的一个stripe中的page读进内存
 		 			  - 如果读取出现预期内的错误，会在validate_rbio_for_parity_scrub中__raid_recover_end_io
 		 			  - 当磁盘上的full_stripe对应的page读进内存后，通过finish_parity_scrub重新计算parity进行比较，

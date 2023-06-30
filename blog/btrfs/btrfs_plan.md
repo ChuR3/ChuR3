@@ -5,7 +5,7 @@
 2. 扩展性：split_leaf  push_left push_right
 
 ## NV
-1. COW : btrfs_commit_transaction
+1. Btrfs之NV（一）：Copy on Write
 2. log_root
 3. cow,log_root怎么检查错误(fsck)，怎么处理
 4. cow benefit
